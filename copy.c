@@ -29,7 +29,54 @@ typedef struct{
     pthread_mutex_t mutex;
 }circBuffer;
 
+
+typedef struct{
+    int ID;
+    pthread_t tid;
+    BufferItem item;
+}tData;
+
+/*Global Variables*/
 int nIN,nOUT,bufSize;
+circBuffer* buffer;
+FILE* ogFile, copyFile, logFile;
+pthread_mutex_t readMutex,writeMutex,logMutex; 
+
+//Intilalize global files and variables
+void initFiles(char* fileIn, char* fileOut, char* log, ){
+    
+    /*Open file to be copied*/
+    if(!(ogFile=fopen(fileIn, "r"))){
+        perror("Could not open file to be copied");
+        exit(1);
+    }
+
+    /*Open file copying to*/
+    if(!(copyFile=fopen(fileOut, "w"))){
+        perror("Could not open file to be copied");
+        exit(1);
+    }
+
+    /*Open Logfile*/
+    if(!(logFile=fopen(Log, "w"))){
+        perror("Could not open file to be copied");
+        exit(1);
+    }
+
+    //Intialize mutexs
+    if(pthread_mutex_init(&readMutex,NULL)!=0){
+        perror("Reader Mutex initilization failed");
+    }
+    if(pthread_mutex_init(&writeMutex,NULL)!=0){
+        perror("Writer Mutex initilization failed");
+    }
+    if(pthread_mutex_init(&logMutex,NULL)!=0){
+        perror("Log Mutex initilization failed");
+    }
+
+
+
+}
 
 // nanosleep for <10ms
 int nsleep() {
@@ -49,7 +96,7 @@ circBuffer createBuffer(int bufSize){
     circBuffer *buffer=(circBuffer*)malloc(sizeof(circBuffer));
     if(!buffer){
         perror("Buffer not allocated in memory properly");
-        return NULL;
+        exit(1);
     }
 
     //allocate memory for array of bufferitems
@@ -57,7 +104,7 @@ circBuffer createBuffer(int bufSize){
     if(!buffer->buffer){
         perror("Buffer not allocated in memory properly");
         free(buffer);
-        return NULL;
+        exit(1);
     }
 
     buffer->read=0;
@@ -82,11 +129,33 @@ void freeBuffer(circBuffer* buffer){
         }
 }
 
+//Read from file.
+void read_byte(int thread, BufferItem *item){
+    pthread_mutex_lock(&readMutex);
+    item->offset=ftell(ogFile);
+    item->data=fgetc(ogFile);
+
+    if((item->offset=lseek(ogFile,0,SEEK_CUR))<0){
+        pthread_mutex_unlock(&readMutex);
+        perror("Cannot seek output file!")
+        exit(1);
+    }
+    if( read(fin, &(item->data), 1) < 1) {
+        printf("read_byte PT%d EOF pthread_exit(0)\n", thread);
+        pthread_mutex_unlock(&readMutex); /* Release read mutex lock */
+        pthread_exit(0); //EOF
+    }    
+
+}
+
+void toLog(char* info, int ID, BufferItem *item, int index){
+
+}
 
 
 /*Declared thread functions*/
-void* in(void*arg);
-void* out(void*arg);
+void* inThread(void*arg);
+void* outThread(void*arg);
 
 /*****************MAIN FUNCTION******************/
 int main(int argc, char* argv[]){
@@ -94,7 +163,7 @@ int main(int argc, char* argv[]){
     /*Check for arguments and ensure none are missing*/
     if(argc<7){
         perror("Please check to ensure you have all the required arguments");
-        return 1;
+        exit(1);
     }
 
     /*Assigning number of threads and file names based on command line inputs*/
@@ -107,7 +176,7 @@ int main(int argc, char* argv[]){
     char *fileIn = malloc(length);
     if (fileIn == NULL){
         perror("Memory allocation for string failed!");
-        return 1;
+        exit(1);
     }
     strcpy(fileIn,argv[3]);
 
@@ -116,7 +185,7 @@ int main(int argc, char* argv[]){
     char *fileOut = malloc(length);
     if (fileOut == NULL){
         perror("Memory allocation for string failed!");
-        return 1;
+        exit(1);
     }
     strcpy(fileOut,argv[4]);
 
@@ -125,42 +194,47 @@ int main(int argc, char* argv[]){
     char *Log = malloc(length);
     if (Log == NULL){
         perror("Memory allocation for string failed!");
-        return 1;
+        exit(1);
     }
     strcpy(Log,argv[6]);
 
+    /*Initialize Files*/
+    initFiles(fileIn,fileOut,Log);
 
     /*Create and initialize Circular Buffer*/
-    circBuffer* buffer = createBuffer(bufSize);
+    buffer = createBuffer(bufSize);
     if(!buffer){
         perror("Buffer not created!");
-        return 1;
+        exit(1);
+    }
+
+    pthread_t tidIN[nIN];
+    tData *inTData = (tData*)malloc(nIN*sizeof*tData);
+
+    /*Intilaize each in thread*/
+    for(int i =0; i<nIN; i++){
+        inTData[i]->ID = i;
+        inTData[i]->tid = &tidIN[i];
+
+        /*Create thread and check if it is creater properly*/
+        if (pthread_create (&tidIN[i],NULL,inThread,&inTData[i])!= 0) {
+                    perror("Failed to create thread!");
+                    exit(1);
+        }
+
     }
 
 
 
-    /*Open file to be copied*/
-    FILE* ogFile;
-    if(!(ogFile=fopen(fileIn, "r"))){
-        perror("Could not open file to be copied");
-        return 1;
+
+    freeBuffer(buffer)
+    return 0;
+}
+
+void* inThread(void*arg){
+    tData *data=(tData*)arg;
+    while(true){
+        nsleep();
+
     }
-
-    /*Open file copying to*/
-    FILE* copyFile;
-    if(!(copyFile=fopen(fileOut, "w"))){
-        perror("Could not open file to be copied");
-        return 1;
-    }
-
-    /*Open Logfile*/
-    FILE* logFile;
-    if(!(logFile=fopen(Log, "w"))){
-        perror("Could not open file to be copied");
-        return 1;
-    }
-
-
-
-freeBuffer(buffer)
 }
