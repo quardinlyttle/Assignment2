@@ -131,7 +131,7 @@ void freeBuffer(circBuffer* buffer){
 
 //Read from file.
 void read_byte(int thread, BufferItem *item){
-    pthread_mutex_lock(&readMutex);
+    pthread_mutex_lock(&readMutex); //Engage reader mutex lock
     item->offset=ftell(ogFile);
     item->data=fgetc(ogFile);
 
@@ -145,10 +145,14 @@ void read_byte(int thread, BufferItem *item){
         pthread_mutex_unlock(&readMutex); /* Release read mutex lock */
         pthread_exit(0); //EOF
     }    
+    toLog("read_byte", thread, *item, -1);
+    pthread_mutex_unlock(&readMutex); //Release reader mutex lock
 
 }
 
 void toLog(char* info, int ID, BufferItem *item, int index){
+    pthread_mutex_lock(&logMutex);
+    
 
 }
 
@@ -235,6 +239,7 @@ void* inThread(void*arg){
     tData *data=(tData*)arg;
     while(true){
         nsleep();
+        read_byte(data->ID,&data->item);
 
     }
 }
