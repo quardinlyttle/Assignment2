@@ -129,6 +129,8 @@ void freeBuffer(circBuffer* buffer) {
         pthread_mutex_destroy(&buffer->mutex);
         free(buffer->buffer);
         free(buffer);
+        sem_destroy(&buffer->empty);
+        sem_destroy(&buffer->full);
     }
 }
 // Write to log file
