@@ -382,14 +382,16 @@ void* outThread(void* arg) {
     srand(pthread_self());
 
     while (1) {
-        nsleep();
-        checkComplete();
-        if(done==1){
-            printf("ID %d is still running for some weird reason.\n",data->ID);
-        }
         nsleep(); // Sleep for 10ms
         consume(data->ID, &data->item); // Consume into tData's item
         nsleep(); // Sleep for 10ms
         write_byte(data->ID, data->item); // Write tData's item
+        nsleep();
+        checkComplete();
+        if(done==1){
+            pthread_exit(0);
+            printf("ID %d is still running for some weird reason.\n",data->ID);
+            break;
+        }
     }
 }
