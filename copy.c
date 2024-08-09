@@ -37,7 +37,7 @@ typedef struct {
 } tData;
 
 /* Global Variables */
-int nIN, nOUT, bufSize, done;
+int nIN, nOUT, bufSize, done, readDone;
 circBuffer* buffer;
 FILE *ogFile, *copyFile, *logFile;
 pthread_mutex_t readMutex, writeMutex, logMutex, doneMutex;
@@ -156,6 +156,7 @@ void read_byte(int thread, BufferItem *item) {
         if (feof(ogFile)) {
             printf("read_byte PT%d EOF pthread_exit(0)\n", thread);
             pthread_mutex_unlock(&readMutex); // Release read mutex lock
+            readDone++;
             pthread_exit(0); // EOF
         } else {
             perror("fgetc error");
@@ -257,6 +258,7 @@ int main(int argc, char* argv[]){
     nIN = atoi(argv[1]);
     nOUT = atoi(argv[2]);
     bufSize = atoi(argv[5]);
+    readDone = 0;
 
     // original file
     size_t length = strlen(argv[3]) + 1;
@@ -322,7 +324,10 @@ int main(int argc, char* argv[]){
             perror("Failed to create the OUT thread");
         }
     }
-
+    while(readDone<nIN){
+        sleep(1);
+    }
+    
     /* Join IN threads */
     for (int i = 0; i < nIN; ++i) {
         pthread_join(threads[i], NULL);
@@ -340,17 +345,9 @@ int main(int argc, char* argv[]){
         pthread_mutex_unlock(&buffer->mutex);
         nsleep();
     }
+    sleep((bufSize%2)+1);
     readComplete();
-
-    /* Join OUT threads */
-    for (int i = nIN; i < (nOUT + nIN); ++i) {
-        nsleep();
-        //printf("Thread ID%ld, array ID: %d\n",threads[i],i);
-        int error = pthread_join(threads[i], NULL);
-        if (error!=0){
-            perror("Thread didnt join!");
-        }
-    }
+    
     printf("Done!\n");
     // Cleanup
     freeBuffer(buffer);
